@@ -1,0 +1,14 @@
+material vrc/asphalt
+{
+    technique
+    {
+        pass
+        {
+            scene_blend alpha_blend
+            depth_write off
+            ambient 1.0 1.0 1.0 0.5
+            diffuse 1.0 1.0 1.0 0.5
+            specular 0.1 0.1 0.1 0.5 10.0
+        }
+    }
+}
