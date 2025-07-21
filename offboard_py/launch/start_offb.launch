@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<launch>
+ <!-- Include the MAVROS node with SITL and Gazebo -->
+  <include file="$(find px4)/launch/mavros_posix_sitl.launch">
+  </include>
+
+  <!-- Rviz視覺化 -->
+  <node pkg="rviz" type="rviz" name="rviz3" args="-d $(find offboard_py)/config/iris.rviz">
+    <env name="QT_ENABLE_HIGHDPI_SCALING" value="0"/>
+  </node>
+
+  <!-- Our node to control the drone -->
+  <node pkg="offboard_py" type="offb_node.py" name="offb_node_py" required="true" output="screen" />
+</launch>
