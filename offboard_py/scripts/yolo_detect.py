@@ -239,9 +239,9 @@ def callback(rgb_msg, depth_msg, depth_info_msg):
 
 # 使用message_filters同步RGB、深度影像和相機參數
 # 這邊要改成要接收的rostopic
-rgb_topic = "/r200/camera/color/image_raw"
-depth_topic = "/r200/camera/depth/image_raw"
-depth_info_topic = "/r200/camera/depth/camera_info"
+rgb_topic = "/camera/color/image_raw"
+depth_topic = "/camera/depth/image_raw"
+depth_info_topic = "/camera/depth/camera_info"
 
 rgb_sub = message_filters.Subscriber(rgb_topic, Image)
 depth_sub = message_filters.Subscriber(depth_topic, Image)

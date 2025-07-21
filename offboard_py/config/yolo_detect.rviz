@@ -21,7 +21,7 @@ Visualization Manager:
   Displays:
     - Class: rviz/Image
       Enabled: false
-      Image Topic: /r200/camera/color/image_raw
+      Image Topic: /camera/color/image_raw
       Max Value: 1
       Median window: 5
       Min Value: 0
@@ -45,7 +45,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /r200/camera/depth/image_raw
+      Image Topic: /camera/depth/image_raw
       Max Value: 1
       Median window: 5
       Min Value: 0

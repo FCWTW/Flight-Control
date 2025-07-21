@@ -20,7 +20,7 @@ Visualization Manager:
   Class: ""
   Displays:
     - Class: rviz/Image
-      Enabled: false
+      Enabled: true
       Image Topic: /camera/color/image_raw
       Max Value: 1
       Median window: 5

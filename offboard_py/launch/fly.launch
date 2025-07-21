@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- 起飛 -->
+  <include file="$(find offboard_py)/launch/start_offb.launch">
+  </include>
+
+  <!-- YOLO 啟動 -->
+  <include file="$(find offboard_py)/launch/yolo_detect.launch">
+  </include>
+</launch>

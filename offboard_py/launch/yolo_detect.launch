@@ -1,8 +1,8 @@
 <launch>
   <!-- 載入YOLO物件偵測節點 -->
-  <node pkg="orb_slam3_ros_wrapper" type="yolo_detect.py" name="yolo_detector" output="screen" respawn="true">
+  <node pkg="offboard_py" type="yolo_detect.py" name="yolo_detector" output="screen" respawn="true">
     <!-- 相機話題參數 -->
-    <param name="camera_topic" value="/r200/camera/color/image_raw" />
+    <param name="camera_topic" value="/camera/color/image_raw" />
   </node>
 
   <!-- Rviz視覺化 -->
