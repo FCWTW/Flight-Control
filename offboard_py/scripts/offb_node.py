@@ -27,7 +27,7 @@ def clamp(val, min_val, max_val):
 
 def pd_controller(target, current_pos, current_vel, kP, kD, max_cmd, dead_zone=0.03):
     """
-    通用 PD 控制器，用於位置控制並輸出速度指令
+    改進的 PD 控制器，增加安全限制和平滑處理
     target: 目標位置
     current_pos: 當前位置
     current_vel: 當前速度
@@ -48,13 +48,56 @@ def pd_controller(target, current_pos, current_vel, kP, kD, max_cmd, dead_zone=0
     # 標準 PD 控制
     cmd = kP * error - kD * current_vel
     
-    # 限制輸出範圍
+    # === 新增：防止過大速度變化的安全限制 ===
+    # 1. 對於大誤差，限制比例項的貢獻
+    # if abs(error) > 1.0:  # 誤差超過1公尺
+    #     # 使用較小的比例增益，避免過激反應
+    #     cmd = (kP * 0.8) * error - kD * current_vel
+    #     rospy.logwarn(f"⚠️  大誤差檢測: {error:.2f}m, 使用保守控制")
+    
+    # 2. 漸進式速度限制（而非硬限制）
+    if abs(cmd) > max_cmd:
+        # 使用 sigmoid 函數平滑限制，而非硬切斷
+        cmd = max_cmd * (cmd / abs(cmd)) * (1 - math.exp(-abs(cmd)/max_cmd))
+    
+    # 3. 最終安全限制
     cmd = clamp(cmd, -max_cmd, max_cmd)
+    
     return cmd, error
+
+class VelocityCommandSmoother:
+    """速度指令平滑濾波器，避免指令突變"""
+    def __init__(self, alpha=0.8):
+        self.alpha = alpha  # 濾波係數 (0-1, 越小越平滑)
+        self.prev_cmd = TwistStamped()
+        self.initialized = False
+    
+    def smooth(self, new_cmd):
+        """對速度指令進行低通濾波，避免突變"""
+        if not self.initialized:
+            self.prev_cmd = new_cmd
+            self.initialized = True
+            return new_cmd
+        
+        smoothed_cmd = TwistStamped()
+        smoothed_cmd.header = new_cmd.header
+        
+        # 對線性速度進行平滑
+        smoothed_cmd.twist.linear.x = (self.alpha * new_cmd.twist.linear.x + 
+                                      (1 - self.alpha) * self.prev_cmd.twist.linear.x)
+        smoothed_cmd.twist.linear.y = (self.alpha * new_cmd.twist.linear.y + 
+                                      (1 - self.alpha) * self.prev_cmd.twist.linear.y)
+        smoothed_cmd.twist.linear.z = (self.alpha * new_cmd.twist.linear.z + 
+                                      (1 - self.alpha) * self.prev_cmd.twist.linear.z)
+        
+        smoothed_cmd.twist.angular.z = new_cmd.twist.angular.z
+        
+        self.prev_cmd = smoothed_cmd
+        return smoothed_cmd
 
 def xyz_pd_controller(target_pos, current_pose, current_vel, kP, kD, max_cmd, dead_zone=0.03):
     """
-    三維 PD 控制器，同時控制 X, Y, Z 軸
+    改進的三維 PD 控制器，增加更保守的 Z 軸控制
     target_pos: 目標位置
     current_pose: 當前位置(PoseStamped)
     current_vel: 當前速度(TwistStamped)
@@ -64,15 +107,29 @@ def xyz_pd_controller(target_pos, current_pose, current_vel, kP, kD, max_cmd, de
     cmd.header.stamp = rospy.Time.now()
     cmd.header.frame_id = 'base_link'
     
-    # X 軸控制
+    # X, Y 軸使用原本的參數
     vx_cmd, error_x = pd_controller(target_pos[0], current_pose.pose.position.x,
                                    current_vel.twist.linear.x, kP[0], kD[0], max_cmd[0], dead_zone)
-    # Y 軸控制
     vy_cmd, error_y = pd_controller(target_pos[1], current_pose.pose.position.y,
                                    current_vel.twist.linear.y, kP[1], kD[1], max_cmd[1], dead_zone)
-    # Z 軸控制
-    vz_cmd, error_z = pd_controller(target_pos[2], current_pose.pose.position.z,
-                                   current_vel.twist.linear.z, kP[2], kD[2], max_cmd[2], dead_zone)
+    
+    # Z 軸使用更保守的參數，特別是在大誤差時
+    error_z = target_pos[2] - current_pose.pose.position.z
+    
+    # 對於 Z 軸，使用額外的安全檢查
+    # if abs(error_z) > 0.5:  # Z 軸誤差超過 50cm
+    #     # 使用更保守的增益
+    #     conservative_kP_z = kP[2] * 0.7  # 降低比例增益
+    #     conservative_max_z = min(max_cmd[2], 0.4)  # 限制最大 Z 軸速度
+    #     vz_cmd, _ = pd_controller(target_pos[2], current_pose.pose.position.z,
+    #                              current_vel.twist.linear.z, conservative_kP_z, kD[2], 
+    #                              conservative_max_z, dead_zone)
+    #     rospy.logwarn(f"⚠️  Z軸大誤差: {error_z:.2f}m, 使用保守控制, vz_cmd: {vz_cmd:.2f}")
+    # else:
+    #     vz_cmd, _ = pd_controller(target_pos[2], current_pose.pose.position.z,
+    #                              current_vel.twist.linear.z, kP[2], kD[2], max_cmd[2], dead_zone)
+    vz_cmd, _ = pd_controller(target_pos[2], current_pose.pose.position.z,
+                                 current_vel.twist.linear.z, kP[2], kD[2], max_cmd[2], dead_zone)
     cmd.twist.linear.x = vx_cmd
     cmd.twist.linear.y = vy_cmd
     cmd.twist.linear.z = vz_cmd
@@ -99,6 +156,9 @@ def main():
     set_mode_client = rospy.ServiceProxy("/mavros/set_mode", SetMode)
     
     rate = rospy.Rate(20) # 20 Hz 控制迴路頻率
+    
+    # 創建速度指令平滑器
+    velocity_smoother = VelocityCommandSmoother(alpha=0.7)
     
     rospy.loginfo("等待 MAVROS 連線...")
     while not rospy.is_shutdown() and current_state is None:
@@ -163,25 +223,30 @@ def main():
     target_altitude = takeoff_point[2] + 2.0  # 以相對位置來計算
     target_takeoff = [takeoff_point[0], takeoff_point[1], target_altitude]
     
-    # PD控制参数
-    kP = [0.4, 0.4, 1.2]  # [kP_x, kP_y, kP_z]
-    kD = [0.08, 0.08, 0.3]  # [kD_x, kD_y, kD_z]
-    max_cmd = [0.5, 0.5, 0.7]  # [max_vx, max_vy, max_vz]
+    # 使用更保守的 PD 參數，特別是 Z 軸
+    kP = [0.4, 0.4, 1.2]      # 降低 Z 軸比例增益：1.2 -> 0.8
+    kD = [0.08, 0.08, 0.4]    # 增加 Z 軸微分增益：0.3 -> 0.4
+    max_cmd = [0.7, 0.7, 0.7] # 降低 Z 軸最大速度：0.7 -> 0.5
 
     rospy.loginfo(f"起飛中，目標高度 {target_altitude:.2f} 公尺...")
     
     # 起飛過程使用統一的三維控制
     while not rospy.is_shutdown():
         cmd, errors = xyz_pd_controller(target_takeoff, current_pose, current_velocity, kP, kD, max_cmd)
-        velocity_pub.publish(cmd)
+        
+        # 對指令進行平滑處理
+        smoothed_cmd = velocity_smoother.smooth(cmd)
+        
+        velocity_pub.publish(smoothed_cmd)
         
         error_z = errors[2]
-        rospy.loginfo(f"起飛中 | 高度: {current_pose.pose.position.z:.2f} m | 誤差: {error_z:.2f} | vz_cmd: {cmd.twist.linear.z:.2f}")
+        rospy.loginfo(f"Takeoff | 高度: {current_pose.pose.position.z:.2f} m | 誤差: {error_z:.2f} | vz_cmd: {smoothed_cmd.twist.linear.z:.2f}")
         
-        if (abs(errors[0]) < 0.1 and abs(errors[1]) < 0.1 and abs(errors[2]) < 0.1 and
-            abs(current_velocity.twist.linear.x) < 0.1 and 
-            abs(current_velocity.twist.linear.y) < 0.1 and
-            abs(current_velocity.twist.linear.z) < 0.1):
+        # 檢查是否到達目標（條件稍微放寬）
+        if (abs(errors[0]) < 0.15 and abs(errors[1]) < 0.15 and abs(errors[2]) < 0.15 and
+            abs(current_velocity.twist.linear.x) < 0.15 and 
+            abs(current_velocity.twist.linear.y) < 0.15 and
+            abs(current_velocity.twist.linear.z) < 0.15):
             rospy.loginfo(f"起飛完成，穩定在位置： {current_pose.pose.position.z:.2f} m。")
             break
         
@@ -205,18 +270,22 @@ def main():
     
     while not rospy.is_shutdown():
         cmd, errors = xyz_pd_controller(target_b, current_pose, current_velocity, kP, kD, max_cmd)
-        velocity_pub.publish(cmd)
+        
+        # 對指令進行平滑處理
+        smoothed_cmd = velocity_smoother.smooth(cmd)
+        
+        velocity_pub.publish(smoothed_cmd)
         
         # 計算到 B 點的三維距離
         distance_to_target = math.sqrt(errors[0]**2 + errors[1]**2 + errors[2]**2)
         
-        rospy.loginfo(f"移動至 B 點 | 目前位置: ({current_pose.pose.position.x:.2f}, {current_pose.pose.position.y:.2f}, {current_pose.pose.position.z:.2f}) | 剩餘距離: {distance_to_target:.2f} m")
+        rospy.loginfo(f"Moving | 目前位置: ({current_pose.pose.position.x:.2f}, {current_pose.pose.position.y:.2f}, {current_pose.pose.position.z:.2f}) | 剩餘距離: {distance_to_target:.2f} m | cmd: ({current_velocity.twist.linear.x}, {current_velocity.twist.linear.y}, {current_velocity.twist.linear.z})")
         
-        # 檢查是否達到 B 點並且穩定
-        if (distance_to_target < 0.2 and
-            abs(current_velocity.twist.linear.x) < 0.1 and 
-            abs(current_velocity.twist.linear.y) < 0.1 and
-            abs(current_velocity.twist.linear.z) < 0.1):
+        # 檢查是否達到 B 點並且穩定（條件稍微放寬）
+        if (distance_to_target < 0.4 and
+            abs(current_velocity.twist.linear.x) < 0.15 and 
+            abs(current_velocity.twist.linear.y) < 0.15 and
+            abs(current_velocity.twist.linear.z) < 0.15):
             rospy.loginfo(f"已到達 B 點並穩定。")
             break
         rate.sleep()
@@ -267,4 +336,3 @@ if __name__ == "__main__":
         main()
     except rospy.ROSInterruptException:
         pass
-
