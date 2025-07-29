@@ -6,7 +6,7 @@ import cv_bridge
 import cv2
 import torch
 from sensor_msgs.msg import Image, CameraInfo, PointCloud2, PointField
-from std_msgs.msg import Header
+from std_msgs.msg import Header, Float32MultiArray, MultiArrayDimension
 import sensor_msgs.point_cloud2 as pc2
 from ultralytics import YOLO
 import message_filters
@@ -28,13 +28,15 @@ device = check_cuda()
 
 # 初始化ROS節點和YOLO模型
 rospy.init_node("yolo_detector_pointcloud")
-detection_model = YOLO("yolo11n.pt").to(device)
+detection_model = YOLO("/root/catkin_ws/src/offboard_py/yolov8n.pt").to(device)
 detection_model.fuse()
 
 # 創建影像和點雲發布者
 det_image_pub = rospy.Publisher("/yolo/detection/image", Image, queue_size=5)
-# 發布整個場景的點雲
 scene_pointcloud_pub = rospy.Publisher("/yolo/scene/pointcloud", PointCloud2, queue_size=5)
+
+# 新增：發布深度資訊的發布者
+depth_info_pub = rospy.Publisher("/yolo/depth/info", Float32MultiArray, queue_size=5)
 
 # CV Bridge instance
 bridge = cv_bridge.CvBridge()
@@ -43,6 +45,48 @@ cam_model = image_geometry.PinholeCameraModel()
 
 # 全局變數
 processing = False
+
+def create_depth_info_message(boxes, names, point_labels, z_valid, u_valid, v_valid):
+    """
+    創建深度資訊消息
+    格式：[object_count, obj1_class_id, obj1_min_depth, obj1_max_depth, obj1_avg_depth, ...]
+    """
+    depth_data = []
+    depth_data.append(float(len(boxes)))  # 物體數量
+    
+    for i, box in enumerate(boxes):
+        cls_id = int(box.cls)
+        obj_mask = (point_labels == i)
+        
+        if np.any(obj_mask):
+            obj_depths = z_valid[obj_mask]
+            min_depth = np.min(obj_depths)
+            max_depth = np.max(obj_depths)
+            avg_depth = np.mean(obj_depths)
+            point_count = len(obj_depths)
+            
+            depth_data.extend([
+                float(cls_id),      # 類別ID
+                float(min_depth),   # 最小深度
+                float(max_depth),   # 最大深度
+                float(avg_depth)
+            ])
+        else:
+            # 如果沒有有效深度點，填入-1
+            depth_data.extend([float(cls_id), -1.0, -1.0, -1.0])
+    
+    # 創建Float32MultiArray消息
+    msg = Float32MultiArray()
+    msg.data = depth_data
+    
+    # 設置維度資訊
+    msg.layout.dim.append(MultiArrayDimension())
+    msg.layout.dim[0].label = "objects"
+    msg.layout.dim[0].size = len(boxes)
+    msg.layout.dim[0].stride = 4  # 每個物體5個數值
+    msg.layout.data_offset = 1  # 第一個數值是物體數量
+    
+    return msg
 
 def callback(rgb_msg, depth_msg, depth_info_msg):
     global processing
@@ -72,7 +116,7 @@ def callback(rgb_msg, depth_msg, depth_info_msg):
 
         # 3. YOLO推論
         with torch.cuda.amp.autocast(enabled=(device=='cuda')):
-            det_results = detection_model(rgb_image, verbose=False, conf=0.5)
+            det_results = detection_model(rgb_image, verbose=False, conf=0.2)
         result = det_results[0] if isinstance(det_results, list) else det_results
         boxes = result.boxes
         names = result.names
@@ -178,12 +222,16 @@ def callback(rgb_msg, depth_msg, depth_info_msg):
             # 創建PointCloud2消息
             scene_cloud_msg = pc2.create_cloud(header, fields, packed_points)
             scene_pointcloud_pub.publish(scene_cloud_msg)
-            rospy.loginfo(f"發布了包含 {len(scene_points)} 個點的場景點雲。")
 
-        # 7. 使用YOLO的原始偵測結果
+        # 7. 新增：發布深度資訊
+        if len(boxes) > 0:
+            depth_info_msg = create_depth_info_message(boxes, names, point_labels, z_valid, u_valid, v_valid)
+            depth_info_pub.publish(depth_info_msg)
+
+        # 8. 使用YOLO的原始偵測結果
         det_annotated = result.plot()
         
-        # 8. 在原始偵測結果上添加深度點和深度信息
+        # 9. 在原始偵測結果上添加深度點和深度信息
         for i, box in enumerate(boxes):
             # 找出屬於該物體的點
             obj_mask = (point_labels == i)
@@ -224,11 +272,11 @@ def callback(rgb_msg, depth_msg, depth_info_msg):
                 cv2.putText(det_annotated, depth_text, (right_top_x, right_top_y), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1)  # 使用黃色
         
-        # 9. 發布帶有深度信息的偵測結果
+        # 11. 發布帶有深度信息的偵測結果
         det_image_pub.publish(bridge.cv2_to_imgmsg(det_annotated, encoding="bgr8"))
 
         process_time = time.time() - start_time
-        rospy.loginfo(f"檢測與點雲處理完成。處理時間: {process_time:.3f}秒。使用設備: {device}")
+        # rospy.loginfo(f"檢測與點雲處理完成。處理時間: {process_time:.3f}秒。使用設備: {device}")
 
     except Exception as e:
         rospy.logerr(f"處理圖像時出錯: {e}")
@@ -259,5 +307,6 @@ rospy.loginfo(f"YOLO檢測器已啟動，使用{device}進行推論，並結合�
 rospy.loginfo(f"訂閱: RGB: {rgb_topic}, 深度: {depth_topic}, 相機參數: {depth_info_topic}")
 rospy.loginfo(f"發布標註影像到: /yolo/detection/image")
 rospy.loginfo(f"發布場景點雲到: /yolo/scene/pointcloud")
+rospy.loginfo(f"發布深度資訊到: /yolo/depth/info")
 
 rospy.spin()

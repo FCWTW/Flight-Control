@@ -1,0 +1,37 @@
+material wallpaper/cat
+{
+  technique
+  {
+    pass
+    {
+      ambient 1.0 1.0 1.0 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.2 0.2 0.2 1.0 12.5
+
+      texture_unit
+      {
+        texture ../textures/cat.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material wallpaper/black
+{
+  technique
+  {
+    pass
+    {
+      ambient 1.0 1.0 1.0 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.2 0.2 0.2 1.0 12.5
+
+      texture_unit
+      {
+        texture ../textures/black.png
+        filtering trilinear
+      }
+    }
+  }
+}

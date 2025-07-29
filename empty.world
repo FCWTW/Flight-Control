@@ -33,8 +33,8 @@
       <real_time_update_rate>250</real_time_update_rate>
       <magnetic_field>6.0e-6 2.3e-5 -4.2e-5</magnetic_field>
     </physics>
-    <model name='unit_box_0'>
-      <pose frame=''>10 0 5 0 -0 0</pose>
+    <model name='base_1'>
+      <pose frame=''>10 0 1 0 -0 0</pose>
       <link name='link'>
         <inertial>
           <mass>1</mass>
@@ -50,7 +50,7 @@
         <collision name='collision'>
           <geometry>
             <box>
-              <size>1 1 10</size>
+              <size>2 2 2</size>
             </box>
           </geometry>
           <max_contacts>10</max_contacts>
@@ -70,13 +70,13 @@
         <visual name='visual'>
           <geometry>
             <box>
-              <size>1 1 10</size>
+              <size>2 2 2</size>
             </box>
           </geometry>
           <material>
             <script>
               <uri>file://media/materials/scripts/picture.material</uri>
-              <name>wallpaper/wallpaper24</name>
+              <name>wallpaper/black</name>
             </script>
           </material>
         </visual>
@@ -85,8 +85,8 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-    <model name='unit_box_1'>
-      <pose frame=''>14 3 5 0 -0 0</pose>
+    <model name='obstacle_1'>
+      <pose frame=''>10 0 4 0 -0 0</pose>
       <link name='link'>
         <inertial>
           <mass>1</mass>
@@ -102,7 +102,7 @@
         <collision name='collision'>
           <geometry>
             <box>
-              <size>1 1 10</size>
+              <size>2 2 4</size>
             </box>
           </geometry>
           <max_contacts>10</max_contacts>
@@ -122,65 +122,13 @@
         <visual name='visual'>
           <geometry>
             <box>
-              <size>1 1 10</size>
+              <size>2 2 4</size>
             </box>
           </geometry>
           <material>
             <script>
               <uri>file://media/materials/scripts/picture.material</uri>
-              <name>wallpaper/wallpaper24</name>
-            </script>
-          </material>
-        </visual>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-    </model>
-    <model name='unit_box_2'>
-      <pose frame=''>15 -1 5 0 -0 0</pose>
-      <link name='link'>
-        <inertial>
-          <mass>1</mass>
-          <inertia>
-            <ixx>0.166667</ixx>
-            <ixy>0</ixy>
-            <ixz>0</ixz>
-            <iyy>0.166667</iyy>
-            <iyz>0</iyz>
-            <izz>0.166667</izz>
-          </inertia>
-        </inertial>
-        <collision name='collision'>
-          <geometry>
-            <box>
-              <size>1 1 10</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='visual'>
-          <geometry>
-            <box>
-              <size>1 1 10</size>
-            </box>
-          </geometry>
-          <material>
-            <script>
-              <uri>file://media/materials/scripts/picture.material</uri>
-              <name>wallpaper/wallpaper24</name>
+              <name>wallpaper/cat</name>
             </script>
           </material>
         </visual>
