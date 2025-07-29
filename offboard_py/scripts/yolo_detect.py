@@ -107,7 +107,10 @@ def callback(rgb_msg, depth_msg, depth_info_msg):
         try:
             rgb_image = bridge.imgmsg_to_cv2(rgb_msg, desired_encoding='bgr8')
             depth_image_raw = bridge.imgmsg_to_cv2(depth_msg, desired_encoding='16UC1')
-            depth_image_meters = depth_image_raw.astype(np.float32) / 1000.0
+
+            # Gazebo 深度的計算單位與現實中不同，因此不用除以 1000
+            depth_image_meters = depth_image_raw.astype(np.float32)
+
             h, w = depth_image_meters.shape
         except cv_bridge.CvBridgeError as e:
             rospy.logerr(f"CV Bridge Error: {e}")
@@ -127,9 +130,9 @@ def callback(rgb_msg, depth_msg, depth_info_msg):
         v_indices, u_indices = np.mgrid[0:h:step, 0:w:step]
         v_indices = v_indices.flatten()
         u_indices = u_indices.flatten()
-        
+
         depths = depth_image_meters[v_indices, u_indices]
-        valid_mask = (depths > 0.01) & (depths < 20.0) & (~np.isnan(depths))
+        valid_mask = (depths > 0.02) & (depths < 15.0) & (~np.isnan(depths))
         
         v_valid = v_indices[valid_mask]
         u_valid = u_indices[valid_mask]
