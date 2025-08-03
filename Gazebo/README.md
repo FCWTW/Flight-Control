@@ -51,7 +51,7 @@ Reference: [ViniciusAbrao/px4_ros2_xrcedds](https://github.com/ViniciusAbrao/px4
 Reference: [HKPolyU-UAV/E2ES](https://github.com/HKPolyU-UAV/E2ES)
 
 ---
-## 整合 YOLO 與 offboard 程式
+## 飛控程式測試
 
 1. offboard package 有修改過的程式碼放在 [這裡](https://github.com/FCWTW/Flight-Control/tree/master/offboard_py)
 2. 使用以下指令測試
