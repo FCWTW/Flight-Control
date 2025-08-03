@@ -1,4 +1,4 @@
-# Gazebo 虛擬環境修改
+# Gazebo 修改
 
 這是針對 [官方範例](https://github.com/FCWTW/Flight-Control/blob/master/Gazebo/README_PX4.md) 所建立的環境進行修改，PX4 是放在根目錄 ，同時已經建好 offboard package 『~/catkin_ws/src/offboard_py』
 
