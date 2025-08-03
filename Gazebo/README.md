@@ -46,7 +46,7 @@ Reference: [ViniciusAbrao/px4_ros2_xrcedds](https://github.com/ViniciusAbrao/px4
 ## 簡易障礙物
 
 1. 將[『empty.world』](https://github.com/FCWTW/Flight-Control/blob/master/Gazebo/empty.world)複製到『~/PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_gazebo-classic/worlds/empty.world』
-2. 將[『materials』](https://github.com/FCWTW/Flight-Control/tree/master/Gazebo/materials)整個複製到『~/PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_gazebo-classic/』底下。
+2. 將[『materials』](https://github.com/FCWTW/Flight-Control/tree/master/Gazebo/materials)整個複製到『~/PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_gazebo-classic/』底下
 
 Reference: [HKPolyU-UAV/E2ES](https://github.com/HKPolyU-UAV/E2ES)
 
@@ -66,7 +66,7 @@ roslaunch offboard_py fly.launch
 roslaunch offboard_py start_auto.launch
 ```
 
-3. OFFBOARD 模式結合 YOLO 偵測的測試結果如下圖所示：畫面右側為 Gazebo 虛擬環境，左側顯示回傳的 RGB 影像、點雲及深度影像。其中，RGB 影像除了顯示物件偵測框外，亦標示了對應的物件深度資訊。
+3. OFFBOARD 模式結合 YOLO 偵測的測試結果如下圖所示：畫面右側為 Gazebo 虛擬環境，左側顯示回傳的 RGB 影像、點雲及深度影像。其中，RGB 影像除了顯示物件偵測框外，亦標示了對應的物件深度資訊
 ![image](../image/gazebo.png)
 
 Reference: [YOLO Detect](https://hackmd.io/lwReki-hQTCrnzUMYMq2yA?view)
