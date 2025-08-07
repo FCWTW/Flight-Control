@@ -40,30 +40,24 @@
 > 
 ---
 ## MAVROS Offboard control example (Python)
-> ### 1. Build work space
+> ### 1. Build work space and creating the ROS package
 > ```bash
 > mkdir -p ~/catkin_ws/src
 > cd ~/catkin_ws/
-> catkin build
-> source ~/catkin_ws/devel/setup.bash
-> ```
-> 
-> ### 2. Creating the ROS Package
-> ```bash
-> roscd  # Should cd into ~/catkin_ws/devel
-> cd ..
-> cd src
+> catkin init
+> cd ~/catkin_ws/src
 > catkin_create_pkg offboard_py rospy
-> cd ~/catkin_ws
 > catkin build
-> source devel/setup.bash
+> echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
+> source ~/.bashrc
+> roscd  # Should cd into ~/catkin_ws/devel
 >
 > roscd offboard_py
 > mkdir scripts
 > cd scripts
 > ```
 >
-> ### 3. Using sample code
+> ### 2. Using sample code
 > ```bash
 > touch offb_node.py
 > chmod +x offb_node.py
@@ -145,7 +139,7 @@
 >>         rate.sleep()
 >> ```
 >
-> ### 4. Creating the ROS launch file
+> ### 3. Creating the ROS launch file
 > ```bash
 > roscd offboard_py
 > mkdir launch
@@ -166,7 +160,7 @@
 >>```
 >>
 >
-> ### 5. Little change in ~/.bashrc file
+> ### 4. Little change in ~/.bashrc file
 >> add these lines at the end of .bashrc file:
 >>
 >> ```bash
@@ -182,7 +176,7 @@
 >> source ~/.bashrc
 >> ```
 >
-> ### 6. Launching your script
+> ### 5. Launching your script
 > ```bash
 > roslaunch offboard_py start_offb.launch
 > ```
