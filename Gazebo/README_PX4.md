@@ -4,6 +4,7 @@
 > ### 1. Download PX4 source code
 > ```bash
 > git clone https://github.com/PX4/PX4-Autopilot.git --recursive
+> sudo apt update && install -y wget curl lsb-release gnupg apt-utils
 > ```
 >
 > ### 2. Run the ubuntu.sh with no arguments to install everything
