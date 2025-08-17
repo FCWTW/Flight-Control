@@ -338,6 +338,9 @@ def main():
             if not upload_mission(waypoints, mission_push_client, mission_clear_client):
                 rospy.logerr("⛔ 重新規劃任務失敗！")
                 set_mode("AUTO.LAND", set_mode_client, rate, velocity_pub)
+                while not rospy.is_shutdown() and current_state.armed:
+                    rospy.sleep()
+                return
 
             # 發送約 2 秒的速度指令以確保無人機有穩定滯空
             for _ in range(40): 
