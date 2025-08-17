@@ -6,7 +6,7 @@ from mavros_msgs.srv import (CommandBool, SetMode, CommandBoolRequest, SetModeRe
                              WaypointPush, WaypointPushRequest, WaypointClear)
 from sensor_msgs.msg import NavSatFix
 from geometry_msgs.msg import TwistStamped, PoseStamped
-from std_msgs.msg import UInt16
+from std_msgs.msg import UInt16, String
 import math
 
 # 全域變數
@@ -18,14 +18,15 @@ current_pose = PoseStamped()
 current_velocity = TwistStamped()
 heartbeat = TwistStamped()   # For OFFBOARD
 heartbeat.header.frame_id = 'base_link'
+key_cmd = "stop"
 
 TIMEOUT_DURATION = 5.0
 TAKEOFF_ALTITUDE = 3.0
 AVOIDANCE_DURATION = 4.0
 
 # AUTO.MISSION 的航點目標 (B點)
-target_b_lat = 0.0
-target_b_lon = 0.0
+b_lat = 0.0
+b_lon = 20.0
 
 # Callback function
 def state_callback(msg):
@@ -50,6 +51,15 @@ def velocity_callback(msg):
 
 def clamp(val, min_val, max_val):
     return max(min(val, max_val), min_val)
+
+def key_cb(msg):
+    global key_cmd, last_cmd_time
+    cmd = msg.data.lower().strip()
+    if cmd in ["forward", "backward", "left", "right", "stop"]:
+        key_cmd = cmd
+        last_cmd_time = rospy.Time.now()
+    else:
+        rospy.logwarn(f"未知指令：{cmd}")
 
 def create_waypoint(lat, lon, alt, command, hold_time=0.0, yaw=float('nan')):
     """
@@ -134,11 +144,11 @@ def set_mode(target, client, rate, velocity_pub=None):
     """
     global current_state
     last_req_time = rospy.Time.now()
-    rospy.loginfo(f"嘗試切換至 {target} 模式...")
+    rospy.loginfo(f"⚠️  嘗試切換至 {target} 模式...")
     while not rospy.is_shutdown() and current_state.mode != target:
         if (rospy.Time.now() - last_req_time) > rospy.Duration(TIMEOUT_DURATION):
             if client.call(custom_mode=target).mode_sent:
-                rospy.loginfo(f"✅ {target} 模式請求已發送。")
+                rospy.loginfo(f"{target} 模式請求已發送。")
             last_req_time = rospy.Time.now()
         if velocity_pub != None:
             heartbeat.header.stamp = rospy.Time.now()
@@ -150,15 +160,15 @@ def upload_mission(waypoints, push_client, clear_client):
     """
     清除舊任務並上傳新任務
     """
-    rospy.loginfo("清除飛控上的舊任務...")
+    # rospy.loginfo("清除飛控上的舊任務...")
     try:
         clear_client()
-        rospy.loginfo("✅ 任務清除成功。")
+        # rospy.loginfo("✅ 任務清除成功。")
     except rospy.ServiceException as e:
         rospy.logerr(f"❌ 任務清除失敗: {e}")
         return False
     
-    rospy.loginfo("上傳任務航點...")
+    # rospy.loginfo("上傳任務航點...")
     try:
         req = WaypointPushRequest()
         req.start_index = 0
@@ -166,8 +176,6 @@ def upload_mission(waypoints, push_client, clear_client):
         resp = push_client(req)
         if resp.success:
             rospy.loginfo(f"✅ 任務上傳成功，共 {len(waypoints)} 個航點。")
-            command_list = [wp.command for wp in waypoints]
-            rospy.loginfo(f"🚁 任務內容：{command_list}")
             return True
         else:
             rospy.logerr(f"❌ 任務上傳失敗，錯誤碼: {resp.error_code}")
@@ -224,6 +232,7 @@ def main():
     rospy.Subscriber("/mavros/state", State, state_callback)
     rospy.Subscriber("/mavros/global_position/global", NavSatFix, global_pos_callback)
     rospy.Subscriber("/mavros/mission/current", UInt16, mission_current_callback)
+    rospy.Subscriber("/drone/keyboard_cmd", String, key_cb)
     velocity_pub = rospy.Publisher("/mavros/setpoint_velocity/cmd_vel", TwistStamped, queue_size=10)
     
     rospy.wait_for_service("/mavros/cmd/arming")
@@ -277,7 +286,7 @@ def main():
     hover_wp = create_waypoint(lat=home_position['lat'], lon=home_position['lon'], alt=TAKEOFF_ALTITUDE, command=16, hold_time=5.0)
     waypoints.append(hover_wp)
     
-    target_b_lat, target_b_lon = local_to_global_offset(0.0, 15.0, home_position['lat'], home_position['lon'])
+    target_b_lat, target_b_lon = local_to_global_offset(b_lat, b_lon, home_position['lat'], home_position['lon'])
     b_point_wp = create_waypoint(lat=target_b_lat, lon=target_b_lon, alt=TAKEOFF_ALTITUDE, command=16, hold_time=5.0)
     waypoints.append(b_point_wp)
     
@@ -306,43 +315,42 @@ def main():
         rate.sleep()
     rospy.loginfo("✅ 無人機已解鎖，任務開始執行！")
     
-    rospy.loginfo("=========================")
-    rospy.loginfo("⚠️  10 秒後嘗試切入 OFFBOARD")
-    rospy.sleep(10.0)
-
-    # 切換至 OFFBOARD 準備避障
-    set_mode("OFFBOARD", set_mode_client, rate, velocity_pub)
-
-    # 模擬避障，先向右 4 秒，再向前 8 秒，全程定高飛行
-    rospy.loginfo(f"模擬避障中...")
-    offboard_avoidance(velocity_pub, rate, home_height)
-
-    # 在空中重新規劃任務 (飛到B點懸停 -> 降落)
-    waypoints = []
-    b_point_wp = create_waypoint(lat=target_b_lat, lon=target_b_lon, alt=2.0, command=16, hold_time=5.0)
-    waypoints.append(b_point_wp)
-    land_wp = create_waypoint(lat=target_b_lat, lon=target_b_lon, alt=0.0, command=21)
-    waypoints.append(land_wp)
-
-    # 過程中有任何錯誤會直接切換至 AUTO.LAND
-    if not upload_mission(waypoints, mission_push_client, mission_clear_client):
-        rospy.logerr("⛔ 重新規劃任務失敗！")
-        set_mode("AUTO.LAND", set_mode_client, rate, velocity_pub)
-
-    # 發送約 2 秒的速度指令以確保無人機有穩定滯空
-    for _ in range(40): 
-        heartbeat.header.stamp = rospy.Time.now()
-        velocity_pub.publish(heartbeat)
-        rate.sleep()
-
-    # 從 OFFBOARD 切回 AUTO.MISSION，繼續飛向 B 點
-    set_mode("AUTO.MISSION", set_mode_client, rate, velocity_pub)
-
     # 等待任務完成
     while not rospy.is_shutdown() and current_state.armed:
-        rospy.sleep(1.0)
+        if key_cmd != "stop":
+            rospy.loginfo(f"⚠️⚠️⚠️⚠️⚠️  偵測到鍵盤輸入")
+            # 切換至 OFFBOARD 準備避障
+            set_mode("OFFBOARD", set_mode_client, rate, velocity_pub)
+
+            # 模擬避障，先向右 4 秒，再向前 8 秒，全程定高飛行
+            rospy.loginfo(f"⚠️  模擬避障中...")
+            offboard_avoidance(velocity_pub, rate, home_height)
+
+            # 在空中重新規劃任務 (飛到B點懸停 -> 降落)
+            waypoints = []
+            b_point_wp = create_waypoint(lat=target_b_lat, lon=target_b_lon, alt=2.0, command=16, hold_time=5.0)
+            waypoints.append(b_point_wp)
+            land_wp = create_waypoint(lat=target_b_lat, lon=target_b_lon, alt=0.0, command=21)
+            waypoints.append(land_wp)
+
+            # 過程中有任何錯誤會直接切換至 AUTO.LAND
+            rospy.loginfo(f"⚠️  重新規劃任務...")
+            if not upload_mission(waypoints, mission_push_client, mission_clear_client):
+                rospy.logerr("⛔ 重新規劃任務失敗！")
+                set_mode("AUTO.LAND", set_mode_client, rate, velocity_pub)
+
+            # 發送約 2 秒的速度指令以確保無人機有穩定滯空
+            for _ in range(40): 
+                heartbeat.header.stamp = rospy.Time.now()
+                velocity_pub.publish(heartbeat)
+                rate.sleep()
+
+            # 從 OFFBOARD 切回 AUTO.MISSION，繼續飛向 B 點
+            set_mode("AUTO.MISSION", set_mode_client, rate, velocity_pub)
+
+        rospy.sleep(0.1)
     
-    rospy.loginfo("🎉 --- 自主飛行任務完成 ---")
+    rospy.loginfo("--- 自主飛行任務完成 ---")
 
 if __name__ == "__main__":
     try:
