@@ -274,7 +274,7 @@ def main():
         'lon': current_global_pos.longitude,
         'alt': current_global_pos.altitude
     }
-    home_height = current_pose.pose.position.z
+    height = current_pose.pose.position.z + TAKEOFF_ALTITUDE
     rospy.loginfo(f"✅ 起飛點 GPS: ({home_position['lat']:.7f}, {home_position['lon']:.7f})")
     
     # 創建航點清單 (起飛 -> 懸停 -> 飛到B點懸停 -> 降落)
@@ -324,7 +324,7 @@ def main():
 
             # 模擬避障，先向右 4 秒，再向前 8 秒，全程定高飛行
             rospy.loginfo(f"⚠️  模擬避障中...")
-            offboard_avoidance(velocity_pub, rate, home_height)
+            offboard_avoidance(velocity_pub, rate, height)
 
             # 在空中重新規劃任務 (飛到B點懸停 -> 降落)
             waypoints = []
